@@ -166,9 +166,7 @@ project/
 │
 ├── game_recommender.py          # Main recommendation script
 ├── games.csv                    # Your Steam games dataset
-├── game_embeddings.pkl          # Cached embeddings (auto-generated)
 ├── recommendation_model_cache.pkl  # Full model cache (auto-generated)
-├── cache_metadata.json          # Cache validation metadata (auto-generated)
 └── README.md                    # This file
 ```
 
@@ -185,19 +183,14 @@ The system automatically rebuilds when:
 
 To force a cache rebuild:
 ```python
-# Delete cache files
+# Delete cache file
 import os
 if os.path.exists('recommendation_model_cache.pkl'):
     os.remove('recommendation_model_cache.pkl')
 if os.path.exists('game_embeddings.pkl'):
     os.remove('game_embeddings.pkl')
 ```
-
-Or use command-line flag (if implemented):
-```bash
-python game_recommender.py --rebuild-cache
-```
-
+or just delete it manually and when you run it will retrain and cache
 ##  Performance
 
 ### Timing Benchmarks (10,000 games):
