@@ -2,7 +2,7 @@
 
 A hybrid machine learning recommendation engine that combines TF-IDF keyword matching with semantic embeddings to provide highly accurate game recommendations based on your library.
 
-## 🎮 Features
+##  Features
 
 - **Hybrid Similarity Engine**: Combines TF-IDF (exact tag matching) with Sentence Transformers (semantic understanding) for optimal results
 - **Smart Tag Weighting**: Automatically boosts core gameplay mechanics (souls-like, metroidvania, roguelike) over artistic themes
@@ -10,7 +10,7 @@ A hybrid machine learning recommendation engine that combines TF-IDF keyword mat
 - **Intelligent Caching**: Automatically rebuilds model only when CSV data changes
 - **Configurable Parameters**: Fine-tune diversity, quality boost, and popularity thresholds
 
-## 📋 Requirements
+##  Requirements
 
 ### Python Version
 - Python 3.11
@@ -24,7 +24,7 @@ sentence-transformers
 torch
 ```
 
-## 🚀 Installation
+##  Installation
 
 1. **Clone or download this project**
 
@@ -43,7 +43,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
    - Place your `games.csv` file in the same directory as the script
    - The CSV should contain Steam game data with columns for reviews, tags, genres, descriptions, etc.
 
-## 📊 Dataset Format
+##  Dataset Format
 
 The script expects a CSV file with the following columns (note: the dataset has misaligned columns which are remapped in the code):
 
@@ -58,21 +58,30 @@ The script expects a CSV file with the following columns (note: the dataset has 
 - **Categories** → `publishers`: Publisher names
 - **Website** → `game_image`: Game image URL
 
-## 💻 Usage
+##  Usage
 "The script in it's current state is made to work with a NodeJS api so feel free to adjust and use the recommend_game method and print what you want"
 ### Basic Usage
 
-1. **Edit the user library** in the script (near the bottom):
+1. **Add a user library** in the script (near the bottom):
 ```python
 user_library = ["Hollow Knight", "Dark Souls", "Celeste"]
 ```
-
-2. **Run the script**:
+2. **Use the recommend_games method and pass the library**
+```python
+recs = recommend_games(
+    user_library, 
+    top_k=50, 
+    diversity_penalty=0.0,# Turn this on (0.5-1.0) if you want variety
+    quality_boost=1.2       # Increased from 0.2
+)
+print(recs)
+```
+3. **Run the script**:
 ```bash
 python game_recommender.py
 ```
 
-3. **View results**: The script outputs top recommendations with review stats and match scores
+4. **View results**: The script outputs top recommendations with review stats and match scores
 
 ### First Run
 
@@ -86,7 +95,7 @@ On the first run, the script will:
 
 Once cached, the script loads in **under 1 second** and provides instant recommendations!
 
-## ⚙️ Configuration
+##  Configuration
 
 ### Key Parameters in `recommend_games()`:
 
@@ -113,7 +122,7 @@ recs = recs[recs['actual_positive'] >= 2000]  # Minimum 2000 positive reviews
 MIN_REVIEWS = 800  # Only consider games with 800+ total reviews
 ```
 
-## 🔧 Advanced Configuration
+##  Advanced Configuration
 
 ### Adjusting Similarity Weights:
 
@@ -150,7 +159,7 @@ K = 45  # Number of similar games to fetch per library game
 
 Increase for more diverse recommendations, decrease for more focused results.
 
-## 🗂️ File Structure
+##  File Structure
 
 ```
 project/
@@ -163,7 +172,7 @@ project/
 └── README.md                    # This file
 ```
 
-## 🔄 Cache Management
+##  Cache Management
 
 ### Automatic Cache Invalidation
 
@@ -189,7 +198,7 @@ Or use command-line flag (if implemented):
 python game_recommender.py --rebuild-cache
 ```
 
-## 📈 Performance
+##  Performance
 
 ### Timing Benchmarks (10,000 games):
 
@@ -205,7 +214,7 @@ python game_recommender.py --rebuild-cache
 - Recommendations: <0.5 seconds
 - **Total: <2 second**
 
-## 🎯 How It Works
+##  How It Works
 
 ### 1. Data Processing
 - Loads Steam games CSV
@@ -233,7 +242,7 @@ python game_recommender.py --rebuild-cache
 - Boosts highly-rated popular games
 - Returns top-ranked recommendations
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### "Game not found" error
 - Check game name spelling
@@ -250,7 +259,7 @@ python game_recommender.py --rebuild-cache
 - Manually delete `.pkl` cache files
 - Verify CSV modification timestamp
 
-## 📚 Algorithm Details
+##  Algorithm Details
 
 ### Core Gameplay Tags
 The system recognizes and boosts these gameplay mechanics:
@@ -271,7 +280,7 @@ final_score = base_similarity * (1 + quality_boost * quality_score^1.5)
 - 20k+ reviews, 90%+ positive → 1.4x boost
 - 10k+ reviews, 90%+ positive → 1.2x boost
 
-## 🤝 Contributing
+##  Contributing
 
 Feel free to fork and improve! Areas for enhancement:
 - Add collaborative filtering
@@ -280,11 +289,11 @@ Feel free to fork and improve! Areas for enhancement:
 - Create web API endpoint
 - Build interactive UI
 
-## 📝 License
+##  License
 
 This project is open source. Use freely for personal or commercial projects.
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - **Sentence Transformers**: For semantic embeddings
 - **scikit-learn**: For TF-IDF and KNN implementations
