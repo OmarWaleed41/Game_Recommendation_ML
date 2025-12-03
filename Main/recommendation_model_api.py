@@ -1,6 +1,11 @@
 import sys
 import os
-# Must be BEFORE any other imports!
+
+# Force unbuffered output - CRITICAL for Node.js communication
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
+
+# Must be BEFORE any other imports! (Torch raises errors if we don't put this)
 if sys.platform == 'win32':
     torch_lib = os.path.join(os.path.dirname(sys.executable), 
                              'Lib', 'site-packages', 'torch', 'lib')
@@ -17,12 +22,15 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import normalize
 from sentence_transformers import SentenceTransformer
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 
-# we in the future want to cache the entire model and not recompute it every time using and we can use CSV hash checking to see if we need to recompute it
-# well we did that part but now we need to see when do we need to recompute it if let's say a new entry is added to the dataset or some values got updated
+app = Flask(__name__)
+CORS(app)
 
-# Smart preprocessing - separate core gameplay tags from artistic tags
+CACHE_FILE = "recommendation_model_cache.pkl"
+
 def preprocess_field_smart(text, weight=1, boost_core=True):
     """Smart preprocessing that identifies core gameplay tags"""
     if not text or pd.isna(text):
@@ -64,25 +72,13 @@ def preprocess_field(text, weight=1):
         weighted_terms.extend([term] * weight)
     return " ".join(weighted_terms)
 
-CACHE_FILE = "recommendation_model_cache.pkl"
-
-if os.path.exists(CACHE_FILE):
-    print("Loading cached model...")
-    with open(CACHE_FILE, 'rb') as f:
-        cache = pickle.load(f)
-        df_filtered = cache['df_filtered']
-        tfidf_matrix = cache['tfidf_matrix']
-        embedding_matrix = cache['embedding_matrix']
-        hybrid_matrix = cache['hybrid_matrix']
-        knn = cache['knn']
-    print("Model loaded from cache!")
-else:
+def train_and_cache():
     csv.field_size_limit(2**31 - 1)
 
     print("Loading data...")
     sys.stdout.flush()
 
-    columns_needed = ['Name', 'Supported languages', 'Negative', 'Score rank', 
+    columns_needed = ['AppID','Name', 'Supported languages', 'Negative', 'Score rank', 
                     'Screenshots', 'Tags', 'Genres', 'Publishers', 'Categories', 'Website']
 
     df = pd.read_csv("games.csv", encoding='utf-8', low_memory=False, 
@@ -93,6 +89,7 @@ else:
     print()
 
     # The datset is misaligned, so we remap columns
+    # df['ID'] = df['AppID']
     df["about_the_game"] = df['Supported languages']
     df["actual_positive"] = df['Negative']
     df["actual_negative"] = df['Score rank']
@@ -231,13 +228,26 @@ else:
             'knn': knn
         }, f)
 
-# Check if a game exists
+try:
+    with open(CACHE_FILE, "rb") as f:
+        model_data = pickle.load(f)
+        df_filtered = model_data['df_filtered']
+        tfidf_matrix = model_data['tfidf_matrix']
+        embedding_matrix = model_data['embedding_matrix']
+        hybrid_matrix = model_data['hybrid_matrix']
+        knn = model_data['knn']
+    print("Loaded model from cache.")
+except FileNotFoundError:
+    train_and_cache()
+    with open(CACHE_FILE, "rb") as f:
+        model_data = pickle.load(f)
+        df_filtered = model_data['df_filtered']
+        tfidf_matrix = model_data['tfidf_matrix']
+        embedding_matrix = model_data['embedding_matrix']
+        hybrid_matrix = model_data['hybrid_matrix']
+        knn = model_data['knn']
+    print("Loaded model After training.")
 
-# game_check = df[df['Name'].str.contains('Cities', case=False, na=False)] # change the name inside the contains method
-# print("\n Game/s in dataset:")
-# print(game_check[['Name', 'actual_positive', 'actual_negative', 'total_reviews']])
-
-# RECOMMENDATION FUNCTION
 def recommend_games(library, top_k=30, diversity_penalty=0.0, quality_boost=0.5, popularity_threshold_boost=True):
     """Hybrid KNN recommendation system using TF-IDF + embeddings"""
     library_lower = [g.lower().strip() for g in library]
@@ -351,7 +361,7 @@ def recommend_games(library, top_k=30, diversity_penalty=0.0, quality_boost=0.5,
         selected.append(idx)
 
     result = df_filtered.iloc[selected][[
-        'Name', 'total_reviews', 'actual_positive', 
+        'AppID','Name', 'total_reviews', 'actual_positive', 
         'actual_negative', 'positive_ratio', 'game_image'
     ]].copy()
 
@@ -360,56 +370,35 @@ def recommend_games(library, top_k=30, diversity_penalty=0.0, quality_boost=0.5,
 
     return result
 
-# RUN RECOMMENDATIONS
+def gameSearch(AppIds):
+    results = df_filtered[df_filtered['AppID'].isin(AppIds)]
+    return results.to_dict(orient='records')
+        
 
-if __name__ == "__main__":
-    import json
-    
-    # Read JSON input from stdin (the data coming from the api request)
-    try:
-        input_data = sys.stdin.read()
-        if input_data:
-            data = json.loads(input_data)
-            user_library = data.get('games', ["Hollow Knight"])
-        else:
-            user_library = ["Hollow Knight"]  # Default (better than empty and also we can just throw an error)
-    except:
-        user_library = ["Hollow Knight"]  # Default on error (again like the condition above)
-    
-    recs = recommend_games(
-        user_library, 
+@app.route('/searchGames', methods=['POST'])
+def search_games_endpoint():
+    app_ids = request.json["appIds"]  # now matches Node
+    results = gameSearch(app_ids)
+    return jsonify(results)
+
+# Recommendation endpoint, sends JSON response to NODE.js server
+@app.route('/recommend', methods=['POST'])
+def recommend_endpoint():
+    library = request.json["library"]
+    # library = data.get('library', [])
+
+    print("\nReceived recommendation request.")
+    recommendations = recommend_games(
+        library,
         top_k=80, 
         diversity_penalty=0.0,
         quality_boost=0.5,
         popularity_threshold_boost=True
     )
-    
-    # Quality filters
-    recs = recs[recs['positive_ratio'] >= 0.80]
-    recs = recs[recs['actual_positive'] >= 2000]
-    recs = recs.sort_values('score', ascending=False)
-    
-    # Output JSON
-    if not recs.empty:
-        results = []
-        for i, (idx, row) in enumerate(recs.head(40).iterrows(), 1):
-            results.append({
-                'rank': i,
-                'name': row['Name'],
-                'positive_reviews': int(row['actual_positive']),
-                'negative_reviews': int(row['actual_negative']),
-                'total_reviews': int(row['total_reviews']),
-                'positive_ratio': float(row['positive_ratio']),
-                'match_score': float(row['score']),
-                'image': row['game_image']
-            })
-        
-        print(json.dumps({
-            'status': 'success',
-            'recommendations': results
-        }))
-    else:
-        print(json.dumps({
-            'status': 'error',
-            'message': 'No recommendations found'
-        }))
+
+    recommendations_list = recommendations.to_dict(orient='records')
+
+    return jsonify(recommendations_list)
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
